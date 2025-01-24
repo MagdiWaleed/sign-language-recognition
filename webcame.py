@@ -104,7 +104,7 @@ class GlossesRecognition():
                 frame = np.zeros((224, 224, 3), dtype=np.uint8)
             else:
                 frame = self.totalframes[self.reading_counter.value-1]
-
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             cv2.putText(
                     frame,"sh-"+str(self.current_glosses_counter.value+1 )+", rd-"+str(self.total_glosses_counter.value+1),
                     (10, 50) ,cv2.FONT_HERSHEY_SIMPLEX,0.8, 
