@@ -59,7 +59,7 @@ class Model(nn.Module):
         self.dropout = nn.Dropout(0.1)
         self.transformer = TransformerForSingleGlossPrediction()
         self.fc1 = nn.Linear(256 ,64)
-        self.fc4 = nn.Linear(64,20)
+        self.fc4 = nn.Linear(64,2)
 
     def forward(self,x):
         batch_size, num_frames, channels, height, width = x.size()

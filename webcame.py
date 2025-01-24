@@ -133,6 +133,7 @@ class GlossesRecognition():
 
                 gloss_probabilities = self.predict(self.model,[current_gloss_video],self.device)
                 gloss_probabilities = F.softmax(gloss_probabilities, dim=1).cpu().detach().numpy()
+                gloss_probabilities = gloss_probabilities[0]
                 gloss_string, displayed_gloss = self.get_gloss_string(gloss_probabilities,self.dictanory,self.previous_glosses_array)
                 self.previous_glosses_array.append(gloss_string)
                 self.displayed_gloss_text = displayed_gloss
@@ -150,6 +151,8 @@ class GlossesRecognition():
         
     def get_gloss_string(self,gloss_probabilities,dictanory,previous_glosses_array:list):
         gloss_index = np.argmax(gloss_probabilities)
+        print('probability: ', gloss_probabilities)
+        print('probability: ', gloss_probabilities[gloss_index])
         gloss_string = dictanory[str(gloss_index)]
         displayed_gloss= ''
 
