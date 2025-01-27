@@ -1,10 +1,10 @@
 {
     "index-to-label": {
-        "0": "no",
-        "1": "yes"
+        "0": "nice",
+        "1": "no"
     },
     "label-to-index": {
-        "no": 0,
-        "yes": 1
+        "nice": 0,
+        "no": 1
     }
 }

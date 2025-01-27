@@ -1,6 +1,8 @@
 import torch.nn as nn
 import torch
 from torch.nn import functional as F
+import math
+from transformers import TimesformerForVideoClassification
 
 class TransformerForSingleGlossPrediction(nn.Module):
     def __init__(self):
@@ -58,18 +60,21 @@ class Model(nn.Module):
         )
         self.dropout = nn.Dropout(0.1)
         self.transformer = TransformerForSingleGlossPrediction()
-        self.fc1 = nn.Linear(256 ,64)
+        self.fc1 = nn.Linear(2176 ,64)
         self.fc4 = nn.Linear(64,2)
 
     def forward(self,x):
         batch_size, num_frames, channels, height, width = x.size()
         x = x.reshape(batch_size*num_frames,channels,height,width)
-        x = self.model(x)
+        extracted_feature = self.model(x)
         # print("x shape after model: ", x.shape)
-        x = self.dropout(x)
-        x = x.reshape(batch_size,-1)
+        x = extracted_feature.reshape(batch_size,-1)
         x = x.reshape(batch_size,num_frames,-1)
         # print("x shape after reshape: ", x.shape)
-        x = self.transformer(x)
+        transformer_output = self.transformer(x)
+        extracted_feature = extracted_feature.reshape(batch_size,-1)
+        x = torch.cat((transformer_output, extracted_feature), dim=1)
+      
         x = F.relu(self.fc1(x))
-        return self.fc4(x)
+        x = self.dropout(x)
+        return F.softmax(self.fc4(x))

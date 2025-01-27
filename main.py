@@ -27,7 +27,7 @@ def main():
     num_frames=15,
     device=device,
     maximum_glosses_length=3,
-    length_of_frames_predictions=72
+    length_of_frames_predictions=30
     ).start_recognition()
   
 if __name__ == "__main__":

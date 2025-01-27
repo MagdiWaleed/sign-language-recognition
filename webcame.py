@@ -8,7 +8,6 @@ import torch
 
 #72
 # np.linspace
-
 class GlossesRecognition():
     def __init__(self,model,num_frames:int,dictanory:dict,device: str = 'cpu',maximum_glosses_length: int =3,length_of_frames_predictions= 72):
         
@@ -18,6 +17,7 @@ class GlossesRecognition():
         self.displayed_gloss_text = ""
         self.total_glosses_counter = 0 #to tell us how many glossess we must try to predict
 
+        self.start_all_functions = 0#to remove the delay in the start_recognition function
         self.finished = 0
         
         #reading variables
@@ -49,6 +49,8 @@ class GlossesRecognition():
 
             #showing variables 
             self.showing_counter  = manager.Value('i',self.showing_counter)  #to tell us we predict the i-th gloss (note this variable and total_glosses_counter)  
+           
+            self.start_all_functions = manager.Value('i',self.start_all_functions)
             # self.maximum_glosses_length = maximum_glosses_length
             
             #gloss predictions
@@ -62,7 +64,7 @@ class GlossesRecognition():
             reading = Process(target=self.readFrames,)
             showing = Process(target=self.showFrames,)
             predict_glosses = Process(target=self.getGlossPredictions,)
-
+            print("converting the variables to managers variables... ")
 
             reading.start()
             showing.start()
@@ -78,24 +80,28 @@ class GlossesRecognition():
             print("somthing went wrong")
             exit()
  
-        while self.reading_counter.value<1000:
+        print("preparing the camera... ")
+        _,_ = cap.read()
+
+        while True:
+            if self.reading_counter.value< self.showing_counter.value and self.start_all_functions.value!=0:#start reading after starting mediapipe to remove the delay
+                ret, frame = cap.read()
+                if not ret:
+                    print("somthing went wrong while reading frames")
+                    break
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                frame = cv2.resize(frame, (224, 224))
+                self.totalframes.append(frame)
+                self.reading_counter.value += 1
+                if self.reading_counter.value %self.length_of_frames_predictions == 0:
+                    self.total_glosses_counter.value+=1
+                if self.finished.value == 1:
+                    break
             
-            ret, frame = cap.read()
-            if not ret:
-                print("somthing went wrong while reading frames")
-                break
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame = cv2.resize(frame, (224, 224))
-            self.totalframes.append(frame)
-            self.reading_counter.value += 1
-            if self.reading_counter.value %self.length_of_frames_predictions == 0:
-                self.total_glosses_counter.value+=1
-            if self.finished.value == 1:
-                break
 
     def showFrames(self):
-        while True: 
-
+        print("preparing frames video... ")
+        while True:           
             if self.reading_counter.value ==0 and self.showing_counter.value ==0:
                 frame = np.zeros((224, 224, 3), dtype=np.uint8)
             elif self.showing_counter.value < self.reading_counter.value:
@@ -115,37 +121,45 @@ class GlossesRecognition():
             key = cv2.waitKey(1)  # Wait ~30ms per frame (adjust for your FPS)
 
             self.showing_counter.value += 1
-           
+        
             if key == 27:  # ESC key
                 print("Exiting video playback.")
                 self.finished.value = 1
                 break
+            
 
         cv2.destroyAllWindows()
     def getGlossPredictions(self):
-        while True:
-            if self.finished.value == 1:
-                break
-            if self.current_glosses_counter.value < self.total_glosses_counter.value:
-                predict_this= np.array(self.totalframes[-self.length_of_frames_predictions:])
-                current_gloss_video = predict_this[self.indcies_range]
-                # print(current_gloss_video.shape)
+            print("initilizing prediction function...")
+            while True:
+                if self.finished.value == 1:
+                    break
+                
+                if self.start_all_functions.value ==0:#if we in the start of the recogintion remove the delay
+                    self.start_all_functions.value = 1
 
-                gloss_probabilities = self.predict(self.model,[current_gloss_video],self.device)
-                gloss_probabilities = F.softmax(gloss_probabilities, dim=1).cpu().detach().numpy()
-                gloss_probabilities = gloss_probabilities[0]
-                gloss_string, displayed_gloss = self.get_gloss_string(gloss_probabilities,self.dictanory,self.previous_glosses_array)
-                self.previous_glosses_array.append(gloss_string)
-                self.displayed_gloss_text = displayed_gloss
-                self.current_glosses_counter.value += 1
-           
+                if self.current_glosses_counter.value < self.total_glosses_counter.value:
+                    # print("///////////////////////\nwe befor anythings\n////////////////////////")
+                    predict_this= np.array(self.totalframes[-self.length_of_frames_predictions:])
+                    current_gloss_video = predict_this[self.indcies_range]
+                    # print(current_gloss_video.shape)
 
-                print(f"Predicted gloss: {gloss_string}, showing_c: {self.showing_counter.value}, reading_c: {self.reading_counter.value}")
-    def predict(self,model,frames,device):
-        frames = torch.tensor(frames).clone().detach()
-        frames = frames.permute(0,1, 4, 2, 3).float().to(device) # batch_size, num_frames, channels, height, width
-        frames = frames.float()
-        outputs = model(frames)
+                    gloss_probabilities = self.predict(self.model,np.array([current_gloss_video]),self.device)
+                    gloss_probabilities = gloss_probabilities.cpu().detach().numpy()
+                    gloss_probabilities = gloss_probabilities[0]
+                    gloss_string, displayed_gloss = self.get_gloss_string(gloss_probabilities,self.dictanory,self.previous_glosses_array)
+                    self.previous_glosses_array.append(gloss_string)
+                    self.displayed_gloss_text = displayed_gloss
+                    self.current_glosses_counter.value += 1
+            
+                    
+                    print(f"{self.current_glosses_counter},Predicted gloss: {gloss_string}, showing_c: {self.showing_counter.value}, reading_c: {self.reading_counter.value}")
+    def predict(self,model,x,device):
+        x = torch.tensor(x).clone().detach()
+        x = x.permute(0,1,4,2,3)
+        x = x.float().to(device) # batch_size, num_x, channels, height, width
+        x = x.float()
+        outputs = model(x)
         return outputs
         
         
